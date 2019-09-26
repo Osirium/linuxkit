@@ -17,6 +17,7 @@ import (
 var (
 	outputImages = map[string]string{
 		"iso":         "linuxkit/mkimage-iso:3d81e29b28ddf739becf10758eb6077b198d26d8",
+		"azure":       "hotdogknight/mkimage-azure:v7",
 		"iso-bios":    "linuxkit/mkimage-iso-bios:131849cfc4f3ede87c2ca19b6e2a4ef86354d1ce",
 		"iso-efi":     "linuxkit/mkimage-iso-efi:1fdcfa6ae73907eb41cbfe2db8eddcbfe11a6c66",
 		"raw-bios":    "linuxkit/mkimage-raw-bios:3d6a6d932e124a0430e36d232dd51af1deef53c3",
@@ -26,7 +27,7 @@ var (
 		"qcow2-efi":   "linuxkit/mkimage-qcow2-efi:ec1f27cff4f84cef7ec4bf7e77c18c8a58b9a356",
 		"vhd":         "linuxkit/mkimage-vhd:3820219e5c350fe8ab2ec6a217272ae82f4b9242",
 		"dynamic-vhd": "linuxkit/mkimage-dynamic-vhd:743ac9959fe6d3912ebd78b4fd490b117c53f1a6",
-		"vmdk":        "linuxkit/mkimage-vmdk:cee81a3ed9c44ae446ef7ebff8c42c1e77b3e1b5",
+		"vmdk":        "hotdogknight/mkimage-vmdk:v7",
 		"rpi3":        "linuxkit/mkimage-rpi3:97a9387ff0ff5db867dd8af931b825e55108bea4",
 	}
 )
@@ -171,6 +172,17 @@ var outFuns = map[string]func(string, io.Reader, int) error{
 			return fmt.Errorf("Error converting to initrd: %v", err)
 		}
 		err = outputImg(outputImages["vhd"], base+".vhd", kernel, initrd, cmdline)
+		if err != nil {
+			return fmt.Errorf("Error writing vhd output: %v", err)
+		}
+		return nil
+	},
+	"azure": func(base string, image io.Reader, size int) error {
+		kernel, initrd, cmdline, _, err := tarToInitrd(image)
+		if err != nil {
+			return fmt.Errorf("Error converting to initrd: %v", err)
+		}
+		err = outputImg(outputImages["azure"], base+".vhd", kernel, initrd, cmdline)
 		if err != nil {
 			return fmt.Errorf("Error writing vhd output: %v", err)
 		}
