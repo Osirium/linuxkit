@@ -16,6 +16,7 @@ import (
 
 var (
 	outputImages = map[string]string{
+		"azure-vhd":   "hotdogknight/mkimage-azure-vhd:807501d86ad422ef910b352e1b0addc29c7776e8",
 		"iso":         "linuxkit/mkimage-iso:3d81e29b28ddf739becf10758eb6077b198d26d8",
 		"iso-bios":    "linuxkit/mkimage-iso-bios:131849cfc4f3ede87c2ca19b6e2a4ef86354d1ce",
 		"iso-efi":     "linuxkit/mkimage-iso-efi:667bd641fd37062eaf9d2173c768ebfcedad3876",
@@ -171,6 +172,17 @@ var outFuns = map[string]func(string, io.Reader, int) error{
 			return fmt.Errorf("Error converting to initrd: %v", err)
 		}
 		err = outputImg(outputImages["vhd"], base+".vhd", kernel, initrd, cmdline)
+		if err != nil {
+			return fmt.Errorf("Error writing vhd output: %v", err)
+		}
+		return nil
+	},
+	"azure-vhd": func(base string, image io.Reader, size int) error {
+		kernel, initrd, cmdline, _, err := tarToInitrd(image)
+		if err != nil {
+			return fmt.Errorf("Error converting to initrd: %v", err)
+		}
+		err = outputImg(outputImages["azure-vhd"], base+".vhd", kernel, initrd, cmdline)
 		if err != nil {
 			return fmt.Errorf("Error writing vhd output: %v", err)
 		}

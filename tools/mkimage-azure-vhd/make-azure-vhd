@@ -6,22 +6,23 @@ mkdir -p /tmp/image
 cd /tmp/image
 
 # input is a tarball of kernel and initrd.img on stdin
-# output is a vmdk on stdout
+# output is a vhd on stdout
 
 mkdir -p files
 
 cd files
 
-echo 'extract stdin' 1>&2
+echo 'extracting tar file' 1>&2
 
 # extract. As guestfs base is currently Debian, no compression support
 # only if stdin is a tty, if so need files volume mounted...
 [ -t 0 ] || tar xf -
 
 INITRD="$(find . -name '*.img')"
-KERNEL="./kernel"
+KERNEL="$(find . -name kernel -or -name '*bzImage')"
 CMDLINE="$*"
 
+[ "$KERNEL" = "./kernel" ] || mv "$KERNEL" vmlinuz64
 [ "$INITRD" = "./initrd.img" ] || mv "$INITRD" initrd.img
 
 # clean up subdirectories
@@ -38,21 +39,21 @@ printf "$CFG" > syslinux.cfg
 
 cd ..
 
-echo 'create files.tar' 1>&2
-
 tar cf files.tar -C files .
 
-# add ~20MB for extlinux
+# add ~10MB for extlinux
 # details of estimation method: https://github.com/libguestfs/libguestfs/blob/master/make-fs/make-fs.c#L681
-SIZE="$( stat --printf="%s" files.tar | perl -e 'use POSIX; print ceil(<> + (20 * 1024 * 1024) + (2176 * 512) + (256 * 1024) * 1.10)' )";
+# round to nearest 1MB: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/create-upload-generic
+SIZE="$( stat --printf="%s" files.tar | perl -e 'use POSIX; print ceil(((<> + (10 * 1024 * 1024) + (2176 * 512) + (256 * 1024)) * 1.10) / 1024 / 1024) * 1024 * 1024' )";
 
 echo "create empty disk [$(( SIZE / 1024 / 1024 ))MB]" 1>&2
 
 # create an empty disk for the data
 qemu-img create -f qcow2 disk.qcow "${SIZE}" 1>&2
 
-echo "provision disk" 1>&2
+echo 'provision disk' 1>&2
 
+# create a 1M partition for Azure
 guestfish -a disk.qcow <<EOF
   !echo 'start virtual machine' 1>&2
 
@@ -61,17 +62,21 @@ guestfish -a disk.qcow <<EOF
   !echo 'create partition table' 1>&2
 
   part-init /dev/sda mbr
-  part-add /dev/sda primary 128 $(( (SIZE / 512) - 1 ))
-  part-set-bootable /dev/sda 1 true
+  part-add /dev/sda primary 128 2175
+  part-add /dev/sda primary 2176 $(( (SIZE / 512) - 1 ))
+  part-set-bootable /dev/sda 2 true
 
-  mke2fs /dev/sda1 fstype:ext2
+  mke2fs /dev/sda2 fstype:ext2
 
   !echo 'copy data' 1>&2
 
   mkmountpoint /root
-  mount /dev/sda1 /root
+  mount /dev/sda2 /root
 
   tar-in files.tar /root/
+
+  !echo 'install extlinux' 1>&2
+
   extlinux /root/
 
   !echo 'shutdown' 1>&2
@@ -79,12 +84,8 @@ guestfish -a disk.qcow <<EOF
   shutdown
 EOF
 
-# mke2fs /dev/sda1 fstype:ext
-# tar-in files.tar /root/
-
 echo 'convert image' 1>&2
 
-# compress qcow image to VMware Disk format
-qemu-img convert -f qcow2 -O vmdk -o adapter_type=lsilogic,subformat=streamOptimized,compat6 -c disk.qcow disk.vmdk 1>&2
+qemu-img convert -f qcow2 -O vpc -o subformat=fixed,force_size disk.qcow disk.vhd 1>&2
 
-cat disk.vmdk
+cat disk.vhd
