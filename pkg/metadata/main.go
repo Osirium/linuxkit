@@ -45,7 +45,7 @@ var netProviders []Provider
 var cdromProviders []Provider
 
 func main() {
-	providers := []string{"aws", "gcp", "openstack", "scaleway", "vultr", "packet", "cdrom"}
+	providers := []string{"aws", "azure", "gcp", "openstack", "scaleway", "vultr", "packet", "cdrom"}
 	if len(os.Args) > 1 {
 		providers = os.Args[1:]
 	}
@@ -53,6 +53,8 @@ func main() {
 		switch p {
 		case "aws":
 			netProviders = append(netProviders, NewAWS())
+		case "azure":
+			netProviders = append(netProviders, NewAzure())
 		case "gcp":
 			netProviders = append(netProviders, NewGCP())
 		case "openstack":
